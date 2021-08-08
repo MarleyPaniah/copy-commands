@@ -45,7 +45,7 @@ class NewEntryFrame(Frame):
 
         # Buttons
         self.add_button = Button(self, text="+", command=self.add_line)
-        self.copy_button = Button(self, text="Copy", command=lambda: self.copy(self.text))
+        self.paste_button = Button(self, text="Paste", command=lambda: self.paste_from_clip())
         self.reset_button = Button(self, text="Reset", command=lambda: self.reset_entries())
         self.close_button = Button(self, text="Close", command=master.quit)
 
@@ -53,11 +53,22 @@ class NewEntryFrame(Frame):
         self.name_entry.grid(row=0, column=0)
         self.line_entry.grid(row=0, column=1)
         self.add_button.grid(row=0, column=2)
-        self.reset_button.grid(row=0, column=3)
+        self.paste_button.grid(row=0, column=3)
+        self.reset_button.grid(row=0, column=4)
         
     def add_line(self, event=None):
         line_block = SavedLineFrame(self.list_frame, self.name_entry.get(), self.line_entry.get())
         print(self.line_entry.get())
+    
+    def paste_from_clip(self, event=None):
+        clip = Tk()
+        clip.withdraw()
+        line = clip.clipboard_get()
+        self.line_entry.delete('0', 'end')
+        self.line_entry.insert(0, line)
+        self.line_entry.icursor("end")
+        clip.destroy()
+        pass
     
     def reset_entries(self):
         self.line_entry.delete('0', 'end')
