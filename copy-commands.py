@@ -5,7 +5,7 @@ GUI to add and copy command lines easily
 '''
 
 import os
-from tkinter import PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
+from tkinter import ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
 
 dir_name = os.path.dirname(__file__)
 
@@ -13,16 +13,20 @@ class MainApplication:
     def __init__(self, master):
         self.master = master
         master.title("copy-commands")
-        master.geometry("1000x500")
+        master.geometry("1100x500")
 
-        self.big_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
+        self.main_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
 
         # Frame
         self.new_entry_frame = NewEntryFrame(self.master)
+
+        # Tab
+        self.tabs = ParentTab(self.master)
         
         # Grid
-        self.big_title.grid(row=0, column=1)
+        self.main_title.grid(row=0, column=1)
         self.new_entry_frame.grid(row=0, column=0, padx=(20, 0))
+        self.tabs.grid(row=1, column=0)
 
 
 class NewEntryFrame(Frame):
@@ -73,6 +77,17 @@ class NewEntryFrame(Frame):
     def reset_entries(self):
         self.line_entry.delete('0', 'end')
         self.name_entry.delete('0', 'end')
+
+class ParentTab(ttk.Notebook):
+    def __init__(self, master):
+        ttk.Notebook.__init__(self, master)
+        # THIS KINDA WORKS
+        # self.tabs = []
+        # self.tabs.append(LinesListFrame(master))
+        # for tab in self.tabs:
+        #     self.add(tab, text="test")
+        
+        # self.grid(row=0, column=1)
 
 
 class LinesListFrame(Frame):
