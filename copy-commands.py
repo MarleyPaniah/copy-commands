@@ -5,7 +5,10 @@ GUI to add and copy command lines easily
 '''
 
 import os
-from tkinter import ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
+from tkinter import Canvas, ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
+
+import copy_commands_utils as cu
+
 
 dir_name = os.path.dirname(__file__)
 
@@ -32,7 +35,8 @@ class MainApplication:
 class NewEntryFrame(Frame):
     def __init__(self, master):
         Frame.__init__(self, master)
-        self["bg"] = "green"
+        self["bg"] = "#559bfa"
+        
 
         self.list_frame = LinesListFrame(self.master)
 
@@ -61,7 +65,8 @@ class NewEntryFrame(Frame):
         self.reset_button.grid(row=0, column=4)
         
     def add_line(self, event=None):
-        line_block = SavedLineFrame(self.list_frame, self.name_entry.get(), self.line_entry.get())
+        com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), ["all"])
+        line_block = SavedLineFrame(self.list_frame, self.name_entry.get(), self.line_entry.get(), com_id)
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
@@ -72,7 +77,6 @@ class NewEntryFrame(Frame):
         self.line_entry.insert(0, line)
         self.line_entry.icursor("end")
         clip.destroy()
-        pass
     
     def reset_entries(self):
         self.line_entry.delete('0', 'end')
@@ -90,22 +94,38 @@ class ParentTab(ttk.Notebook):
         # self.grid(row=0, column=1)
 
 
-class LinesListFrame(Frame):
+class LinesListFrame(Canvas):
     def __init__(self, master):
-        Frame.__init__(self, master)
-        self["height"] = 300
-        self["width"] = 300
+        Canvas.__init__(self, master)
+        self["height"] = 450
+        self["width"] = 700
         #self["bg"] = "red"
-        self.lines_list = []
-        self.grid(row=1, column=0)
 
+        self.commands_dict = cu.recover_json() # dictionary
+        
+        self.initialize_saved_lines()
+
+        # self.sb = Scrollbar(self, orient="vertical")
+        # self.sb.grid(row=0, column=1)
+        # self.config(yscrollcommand=self.sb.set)
+        # self.sb.config(command=self.xview)
+        # self.sb.config(scrollregion=self.bbox("all"))
+
+        self.grid_propagate(False)
+        self.grid(row=1, column=0, sticky="nw", padx=(20, 0))
+
+    def initialize_saved_lines(self):
+        for com_id, attributes in self.commands_dict.items():
+            line_block = SavedLineFrame(self, attributes["name"], attributes["line"], com_id)
 
 class SavedLineFrame(Frame):
-    def __init__(self, list_frame, name, line):
+    def __init__(self, list_frame, name, line, com_id):
         Frame.__init__(self, list_frame)
         self["height"] = 100
         self["width"] = 300
-        self["bg"] = "blue"
+        self["bg"] = "#00c450"
+
+        self.com_id = com_id
 
         self.name = StringVar()
         self.line = StringVar()
@@ -115,8 +135,8 @@ class SavedLineFrame(Frame):
         self.saved_name_label = Label(self, textvariable=self.name, width=20)
         self.saved_line_label = Label(self, textvariable=self.line, width=50)
 
-        self.saved_name_label.bind('<Double-Button-1>', lambda event: self.change_label(w_type='name'))
-        self.saved_line_label.bind('<Double-Button-1>', lambda event: self.change_label(w_type='line'))
+        self.saved_name_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, field='name'))
+        self.saved_line_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, field='line'))
 
 
         sub = 20 #for subsampling i.e. resizing
@@ -125,7 +145,6 @@ class SavedLineFrame(Frame):
         self.delete_icon = PhotoImage(file=os.path.join(dir_name, "delete_icon.png")).subsample(sub)
         self.delete_button = Button(self, text="DELETE", image=self.delete_icon, command=self.delete_line)
         
-
         self.grid()
         self.saved_name_label.grid(row=0, column=0)
         self.saved_line_label.grid(row=0, column=1)
@@ -133,26 +152,26 @@ class SavedLineFrame(Frame):
         self.delete_button.grid(row=0, column=3)
 
         # Adding widget to the list of parent ListLinesFrame
-        list_frame.lines_list.append(self)
+        #list_frame.lines_list.append(self)
 
 
-    def change_label(self, w_type):
+    def edit_label(self, com_id, field):
         '''
         Changes label of an already saved line
         
         Inputs:
-        - w_type: widget type, either a name or line entry
+        - field: widget type, either a name or line entry
         '''
-        if w_type == 'name':
+        if field == 'name':
             var = self.name
             width = 20
             column = 0
-        elif w_type == 'line':
+        elif field == 'line':
             var = self.line
             width = 50
             column = 1
         else:
-            print("Error", w_type)
+            print("Error", field)
         
         # Creation of an Entry widget on top of the label one
         self.over_entry = Entry(self, width=width, textvariable=var) # StringVar will be updated automatically
@@ -160,7 +179,14 @@ class SavedLineFrame(Frame):
         self.over_entry.selection_range(0, 'end')
         self.over_entry.grid(row=0, column=column)
         self.over_entry.focus() # put cursor focus on the entry
-        self.over_entry.bind('<Return>', lambda event: self.over_entry.destroy())
+        self.over_entry.bind('<Return>', lambda event: save_destroy())
+
+        def save_destroy(event=None):
+            '''
+            Interediate function for saving edited line and destroy over_entry widget
+            '''
+            cu.edit_saved_json(com_id, field, self.over_entry.get())
+            self.over_entry.destroy()
 
 
         
@@ -174,7 +200,8 @@ class SavedLineFrame(Frame):
 
     def delete_line(self):
         self.grid_forget()
-        self.destroy() #rmeove if I want to be able to undo the deletion
+        self.destroy() # (remoove if I want to be able to undo the deletion)
+        cu.delete_from_json(self.com_id)
         
         
     
