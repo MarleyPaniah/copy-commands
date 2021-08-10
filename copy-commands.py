@@ -20,8 +20,9 @@ class MainApplication:
 
         self.main_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
 
-        # Frame
+        # Frames
         self.new_entry_frame = NewEntryFrame(self.master)
+        
 
         # Tab
         self.tabs = ParentTab(self.master)
@@ -37,7 +38,7 @@ class NewEntryFrame(Frame):
         Frame.__init__(self, master)
         self["bg"] = "#559bfa"
         
-
+        # Lines List Frame
         self.list_frame = LinesListFrame(self.master)
 
         # Text Entries
@@ -99,17 +100,17 @@ class LinesListFrame(Canvas):
         Canvas.__init__(self, master)
         self["height"] = 450
         self["width"] = 700
-        #self["bg"] = "red"
+        self["bg"] = "red"
 
         self.commands_dict = cu.recover_json() # dictionary
         
         self.initialize_saved_lines()
 
-        # self.sb = Scrollbar(self, orient="vertical")
-        # self.sb.grid(row=0, column=1)
-        # self.config(yscrollcommand=self.sb.set)
-        # self.sb.config(command=self.xview)
-        # self.sb.config(scrollregion=self.bbox("all"))
+        self.sb = Scrollbar(self, orient="vertical")
+        self.sb.grid(row=0, column=1)
+        self.config(yscrollcommand=self.sb.set)
+        self.sb.config(command=self.xview)
+        self.sb.config(scrollregion=self.bbox("all"))
 
         self.grid_propagate(False)
         self.grid(row=1, column=0, sticky="nw", padx=(20, 0))
