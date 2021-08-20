@@ -5,9 +5,32 @@ GUI to add and copy command lines easily
 '''
 
 import os
+import tkinter as tk
 from tkinter import Canvas, ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
 
 import copy_commands_utils as cu
+
+# MainApplication
+## >> in MainApplication Frame
+MT_ROW = 0 # Main title row
+MT_COL = 0 # Main title column
+
+NE_ROW = 1 # New entry row
+NE_COL = 0 # New entry column
+
+PT_ROW = 2 # Tab navigator row
+PT_COL = 0 # Tab navigator column
+
+### >> in ParentTabs
+VC_ROW = 0 # View canvas row
+VC_COL = 0 # View canvas column
+
+#### >> in ViewCanvas
+LL_ROW = 0 # Lines list row
+LL_COL = 0 # Lines list column
+
+SL_ROWS = 10 # Saved lines simultaneous rows
+SL_COLS = 4 # Saved lines siultaneous columns
 
 
 dir_name = os.path.dirname(__file__)
@@ -16,30 +39,35 @@ class MainApplication:
     def __init__(self, master):
         self.master = master
         master.title("copy-commands")
-        master.geometry("1100x500")
+        master.geometry("850x700")
 
+        # Main title
         self.main_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
 
-        # Frames
-        self.new_entry_frame = NewEntryFrame(self.master)
-        
-
         # Tab
-        self.tabs = ParentTab(self.master)
-        
-        # Grid
-        self.main_title.grid(row=0, column=1)
-        self.new_entry_frame.grid(row=0, column=0, padx=(20, 0))
-        self.tabs.grid(row=1, column=0)
+        self.tabs = ParentTabs(self.master)
 
+        # Canvas
+        self.canvas = ViewCanvas(self.tabs)
+
+        # Frames
+        self.list_frame = LinesListFrame(self.canvas)
+        self.new_entry_frame = NewEntryFrame(self.master, self.list_frame)    
+        
+        # Sending frames to tabs
+        self.tabs.setter(self.canvas, self.list_frame)
+        
+        # Grid management
+        self.main_title.grid(row=MT_ROW, column=MT_COL, padx=(0, 0), sticky=tk.NW)
+        self.new_entry_frame.grid(row=NE_ROW, column=NE_COL, padx=(50, 0), pady=(0, 0), sticky=tk.NW)
+        self.tabs.grid(row=PT_ROW, column=PT_COL, padx = (50, 0), pady= (10, 0), sticky=tk.NW)
 
 class NewEntryFrame(Frame):
-    def __init__(self, master):
+    def __init__(self, master, list_frame):
         Frame.__init__(self, master)
         self["bg"] = "#559bfa"
+        self.list_frame = list_frame
         
-        # Lines List Frame
-        self.list_frame = LinesListFrame(self.master)
 
         # Text Entries
         self.name_entry = Entry(self, width=20)
@@ -83,9 +111,51 @@ class NewEntryFrame(Frame):
         self.line_entry.delete('0', 'end')
         self.name_entry.delete('0', 'end')
 
-class ParentTab(ttk.Notebook):
+class ParentTabs(ttk.Notebook):
     def __init__(self, master):
         ttk.Notebook.__init__(self, master)
+        self["height"] = 400
+        self["width"] = 650
+        self.grid(row=0, column=1)
+
+    def setter(self, canvas, list_frame):
+        '''
+        To externally create canvas and list frame
+        '''
+        self.canvas = canvas
+        self.list_frame = list_frame
+        self.set_scrollbar()
+    
+    def set_scrollbar(self):
+        self.vsb = Scrollbar(self.canvas, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.vsb.set)
+        self.canvas.create_window((0,0), window=self.list_frame, anchor="nw")
+
+        # Binding
+        self.list_frame.bind("<Configure>", self.on_frame_configure)
+        self.canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
+
+        # Grid management
+        self.vsb.grid(row=3, column=3, sticky=tk.NE)
+        self.canvas.grid(row=VC_ROW, column=VC_COL, sticky=tk.NW)
+
+        # Add tab
+        self.add(self.canvas, text="alltest")
+        
+        
+    def on_frame_configure(self, event):
+        bbox = self.canvas.bbox(tk.ALL)
+        w, h = bbox[2]-bbox[1], bbox[3]-bbox[1]
+        dw, dh = int((w/6) * 4), int((h/10) * 3)
+        self.canvas.configure(scrollregion=bbox)
+    
+    def on_mouse_wheel(self, event):
+        self.canvas.yview_scroll(-1 * int((event.delta / 120)), "units")
+
+
+
+
+
         # THIS KINDA WORKS
         # self.tabs = []
         # self.tabs.append(LinesListFrame(master))
@@ -94,26 +164,31 @@ class ParentTab(ttk.Notebook):
         
         # self.grid(row=0, column=1)
 
+class ViewCanvas(Canvas):
+    '''
+    MainApp -> ParentTabs -> ViewCanvas\n
+    Canvas which holds LinesListFrame and is scrollable
+    '''
+    def __init__(self, parent_tab):
+        Canvas.__init__(self, parent_tab)
+        # Do not put hard-coded height and width, otherwise the scrolling will
+        # not work properly and will stick to these parameters
+        self["borderwidth"] = 0
+        self["bg"] = "orange"
 
-class LinesListFrame(Canvas):
-    def __init__(self, master):
-        Canvas.__init__(self, master)
-        self["height"] = 450
-        self["width"] = 700
+class LinesListFrame(Frame):
+    '''
+    MainApp -> ParentTabs -> ViewCanvas -> LinesListFrame\n
+    Frame that holds several SavedLineFrame
+    '''
+    def __init__(self, canvas_frame):
+        Frame.__init__(self, canvas_frame)
         self["bg"] = "red"
 
-        self.commands_dict = cu.recover_json() # dictionary
-        
+        self.canvas_frame = canvas_frame
+
+        self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
         self.initialize_saved_lines()
-
-        self.sb = Scrollbar(self, orient="vertical")
-        self.sb.grid(row=0, column=1)
-        self.config(yscrollcommand=self.sb.set)
-        self.sb.config(command=self.xview)
-        self.sb.config(scrollregion=self.bbox("all"))
-
-        self.grid_propagate(False)
-        self.grid(row=1, column=0, sticky="nw", padx=(20, 0))
 
     def initialize_saved_lines(self):
         for com_id, attributes in self.commands_dict.items():
@@ -122,8 +197,6 @@ class LinesListFrame(Canvas):
 class SavedLineFrame(Frame):
     def __init__(self, list_frame, name, line, com_id):
         Frame.__init__(self, list_frame)
-        self["height"] = 100
-        self["width"] = 300
         self["bg"] = "#00c450"
 
         self.com_id = com_id
@@ -146,7 +219,8 @@ class SavedLineFrame(Frame):
         self.delete_icon = PhotoImage(file=os.path.join(dir_name, "delete_icon.png")).subsample(sub)
         self.delete_button = Button(self, text="DELETE", image=self.delete_icon, command=self.delete_line)
         
-        self.grid()
+        # Grid management
+        self.grid(sticky="news")
         self.saved_name_label.grid(row=0, column=0)
         self.saved_line_label.grid(row=0, column=1)
         self.copy_button.grid(row=0, column=2)
@@ -184,7 +258,7 @@ class SavedLineFrame(Frame):
 
         def save_destroy(event=None):
             '''
-            Interediate function for saving edited line and destroy over_entry widget
+            Intermediate function for saving edited line and destroy over_entry widget
             '''
             cu.edit_saved_json(com_id, field, self.over_entry.get())
             self.over_entry.destroy()
