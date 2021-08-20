@@ -5,6 +5,7 @@ GUI to add and copy command lines easily
 '''
 
 import os
+import platform
 import tkinter as tk
 from tkinter import Canvas, ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
 
@@ -120,6 +121,8 @@ class ParentTabs(ttk.Notebook):
         ttk.Notebook.__init__(self, master)
         self["height"] = 400
         self["width"] = 650
+
+        # Grid management
         self.grid(row=0, column=1)
 
     def setter(self, canvas, list_frame):
@@ -134,13 +137,18 @@ class ParentTabs(ttk.Notebook):
         self.vsb = Scrollbar(self.canvas, orient=tk.VERTICAL, command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
         self.canvas.create_window((0,0), window=self.list_frame, anchor="nw")
+
+        # Scrollbar positioning
         self.canvas.columnconfigure(0, weight=1)
         self.canvas.rowconfigure(0, weight=1)    
 
 
         # Binding
         self.list_frame.bind("<Configure>", self.on_frame_configure)
-        self.canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
+        self.list_frame.bind('<Enter>', self.on_enter)
+        self.list_frame.bind('<Leave>', self.on_leave)
+        #self.canvas.bind("<Configure>", self.on_frame_configure)
+        #self.canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
         # Grid management
         self.vsb.grid(row=SB_ROW, column=SB_COL, sticky=tk.NSEW) #note: needs nsew to fill
@@ -153,14 +161,40 @@ class ParentTabs(ttk.Notebook):
         
         
     def on_frame_configure(self, event):
+        '''
+        Resets the scroll region to encompass the inner frame
+        '''
         # bbox = self.canvas.bbox(tk.ALL)
         # w, h = bbox[2]-bbox[1], bbox[3]-bbox[1]
         # dw, dh = int((w/6) * SL_COLS_DISP), int((h/10) * SL_ROWS_DISP)
         # self.canvas.configure(scrollregion=bbox, width=dw, height=dh)
         self.canvas.configure(scrollregion=self.canvas.bbox(tk.ALL))
-    
+
     def on_mouse_wheel(self, event):
-        self.canvas.yview_scroll(-1 * int((event.delta / 120)), "units")
+        if platform.system() == "Windows":
+            self.canvas.yviews_croll(int(-1* (event.delta/120)), "units")
+        else:
+            if event.num == 4:
+                    self.canvas.yview_scroll( -1, "units" )
+            elif event.num == 5:
+                self.canvas.yview_scroll( 1, "units" )
+
+
+    def on_enter(self, event):
+        if platform.system() == "Linux":
+            self.canvas.bind_all("<Button-4>", self.on_mouse_wheel)
+            self.canvas.bind_all("<Button-5>", self.on_mouse_wheel)
+        else:
+            self.canvas.bind_all('<MouseWheel>', self.on_mouse_wheel)
+    
+    def on_leave(self, event):
+        if platform.system() == 'Linux':
+            self.canvas.unbind_all('<Button-4')
+            self.canvas.unbind_all('<Button-5')
+        else:
+            self.canvas.unbind_all('<MouseWheel>')
+    
+
 
 class ViewCanvas(Canvas):
     '''
