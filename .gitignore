@@ -1,4 +1,3 @@
 test*.py
 .commands.json
 __pycache__/
-*.pyc

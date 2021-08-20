@@ -12,11 +12,13 @@ json_path = os.path.join(dir_name, ".commands.json")
 
 def check_file(json_path=json_path):
     if not os.path.exists(json_path):
-        with open(json_path, "w+"):
+        with open(json_path, "w+") as json_file:
             print("[DEBUG] File created")
     if os.stat(json_path).st_size == 0:
         print("[DEBUG] File empty")
         return 0
+    else:
+        return 1
 
 
 def add_to_json(name, line, categories, json_path=json_path):

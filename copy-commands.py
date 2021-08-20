@@ -29,8 +29,12 @@ VC_COL = 0 # View canvas column
 LL_ROW = 0 # Lines list row
 LL_COL = 0 # Lines list column
 
-SL_ROWS = 10 # Saved lines simultaneous rows
-SL_COLS = 4 # Saved lines siultaneous columns
+##### >> in LinesListFrame
+SB_ROW = 0 # Scrollbar row
+SB_COL = 1 # Scrollbar column
+
+SL_ROWS_DISP = 10 # Saved lines rows simultaneously displayed
+SL_COLS_DISP = 4 # Saved lines columns simultaneously displayed
 
 
 dir_name = os.path.dirname(__file__)
@@ -95,7 +99,7 @@ class NewEntryFrame(Frame):
         
     def add_line(self, event=None):
         com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), ["all"])
-        line_block = SavedLineFrame(self.list_frame, self.name_entry.get(), self.line_entry.get(), com_id)
+        line_block = SavedLineFrame(self.list_frame, com_id, self.name_entry.get(), self.line_entry.get())
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
@@ -127,42 +131,36 @@ class ParentTabs(ttk.Notebook):
         self.set_scrollbar()
     
     def set_scrollbar(self):
-        self.vsb = Scrollbar(self.canvas, orient="vertical", command=self.canvas.yview)
+        self.vsb = Scrollbar(self.canvas, orient=tk.VERTICAL, command=self.canvas.yview)
         self.canvas.configure(yscrollcommand=self.vsb.set)
         self.canvas.create_window((0,0), window=self.list_frame, anchor="nw")
+        self.canvas.columnconfigure(0, weight=1)
+        self.canvas.rowconfigure(0, weight=1)    
+
 
         # Binding
         self.list_frame.bind("<Configure>", self.on_frame_configure)
         self.canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
 
         # Grid management
-        self.vsb.grid(row=3, column=3, sticky=tk.NE)
-        self.canvas.grid(row=VC_ROW, column=VC_COL, sticky=tk.NW)
+        self.vsb.grid(row=SB_ROW, column=SB_COL, sticky=tk.NSEW) #note: needs nsew to fill
+        self.canvas.grid(row=VC_ROW, column=VC_COL)
 
         # Add tab
         self.add(self.canvas, text="alltest")
+
+        #self.list_frame.update_idletasks()
         
         
     def on_frame_configure(self, event):
-        bbox = self.canvas.bbox(tk.ALL)
-        w, h = bbox[2]-bbox[1], bbox[3]-bbox[1]
-        dw, dh = int((w/6) * 4), int((h/10) * 3)
-        self.canvas.configure(scrollregion=bbox)
+        # bbox = self.canvas.bbox(tk.ALL)
+        # w, h = bbox[2]-bbox[1], bbox[3]-bbox[1]
+        # dw, dh = int((w/6) * SL_COLS_DISP), int((h/10) * SL_ROWS_DISP)
+        # self.canvas.configure(scrollregion=bbox, width=dw, height=dh)
+        self.canvas.configure(scrollregion=self.canvas.bbox(tk.ALL))
     
     def on_mouse_wheel(self, event):
         self.canvas.yview_scroll(-1 * int((event.delta / 120)), "units")
-
-
-
-
-
-        # THIS KINDA WORKS
-        # self.tabs = []
-        # self.tabs.append(LinesListFrame(master))
-        # for tab in self.tabs:
-        #     self.add(tab, text="test")
-        
-        # self.grid(row=0, column=1)
 
 class ViewCanvas(Canvas):
     '''
@@ -173,8 +171,11 @@ class ViewCanvas(Canvas):
         Canvas.__init__(self, parent_tab)
         # Do not put hard-coded height and width, otherwise the scrolling will
         # not work properly and will stick to these parameters
+        # self["height"] = 300
+        # self["width"] = 200
         self["borderwidth"] = 0
         self["bg"] = "orange"
+
 
 class LinesListFrame(Frame):
     '''
@@ -188,14 +189,17 @@ class LinesListFrame(Frame):
         self.canvas_frame = canvas_frame
 
         self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
-        self.initialize_saved_lines()
+        self.initialize_saved_lines() # TODO: this takes too much time
+
+        # Since its loading takes time, it is to prevent that
+        self.update_idletasks()
 
     def initialize_saved_lines(self):
         for com_id, attributes in self.commands_dict.items():
-            line_block = SavedLineFrame(self, attributes["name"], attributes["line"], com_id)
+            saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"])
 
 class SavedLineFrame(Frame):
-    def __init__(self, list_frame, name, line, com_id):
+    def __init__(self, list_frame, com_id, name, line):
         Frame.__init__(self, list_frame)
         self["bg"] = "#00c450"
 
@@ -220,14 +224,11 @@ class SavedLineFrame(Frame):
         self.delete_button = Button(self, text="DELETE", image=self.delete_icon, command=self.delete_line)
         
         # Grid management
-        self.grid(sticky="news")
+        self.grid()
         self.saved_name_label.grid(row=0, column=0)
         self.saved_line_label.grid(row=0, column=1)
         self.copy_button.grid(row=0, column=2)
         self.delete_button.grid(row=0, column=3)
-
-        # Adding widget to the list of parent ListLinesFrame
-        #list_frame.lines_list.append(self)
 
 
     def edit_label(self, com_id, field):
