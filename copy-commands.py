@@ -19,10 +19,10 @@ MT_COL = 0 # Main title column
 NE_ROW = 1 # New entry row
 NE_COL = 0 # New entry column
 
-PT_ROW = 2 # Tab navigator row
-PT_COL = 0 # Tab navigator column
+TC_ROW = 2 # Tab navigator row
+TC_COL = 0 # Tab navigator column
 
-### >> in ParentTabs
+### >> in TabControl
 VC_ROW = 0 # View canvas row
 VC_COL = 0 # View canvas column
 
@@ -34,8 +34,8 @@ LL_COL = 0 # Lines list column
 SB_ROW = 0 # Scrollbar row
 SB_COL = 1 # Scrollbar column
 
-SL_ROWS_DISP = 10 # Saved lines rows simultaneously displayed
-SL_COLS_DISP = 4 # Saved lines columns simultaneously displayed
+# SL_ROWS_DISP = 10 # Saved lines rows simultaneously displayed
+# SL_COLS_DISP = 4 # Saved lines columns simultaneously displayed
 
 
 dir_name = os.path.dirname(__file__)
@@ -50,28 +50,23 @@ class MainApplication:
         self.main_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
 
         # Tab
-        self.tabs = ParentTabs(self.master)
+        self.tabs = TabControl(self.master)
+        #TODO: move the canvas and list frame logic into the tabs themselves
+        # Watch out for newentryframe, that needs to be passed a list_frame,
+        # which can be retrieved by accessing the selected tab
 
-        # Canvas
-        self.canvas = ViewCanvas(self.tabs)
+        self.new_entry_frame = NewEntryFrame(self.master, self.tabs)    
 
-        # Frames
-        self.list_frame = LinesListFrame(self.canvas)
-        self.new_entry_frame = NewEntryFrame(self.master, self.list_frame)    
-        
-        # Sending frames to tabs
-        self.tabs.setter(self.canvas, self.list_frame)
-        
         # Grid management
         self.main_title.grid(row=MT_ROW, column=MT_COL, padx=(0, 0), sticky=tk.NW)
         self.new_entry_frame.grid(row=NE_ROW, column=NE_COL, padx=(50, 0), pady=(0, 0), sticky=tk.NW)
-        self.tabs.grid(row=PT_ROW, column=PT_COL, padx = (50, 0), pady= (10, 0), sticky=tk.NW)
+        self.tabs.grid(row=TC_ROW, column=TC_COL, padx = (50, 0), pady= (10, 0), sticky=tk.NW)
 
 class NewEntryFrame(Frame):
-    def __init__(self, master, list_frame):
+    def __init__(self, master, tab_control):
         Frame.__init__(self, master)
         self["bg"] = "#559bfa"
-        self.list_frame = list_frame
+        self.tab_control = tab_control
         
 
         # Text Entries
@@ -89,7 +84,7 @@ class NewEntryFrame(Frame):
         self.add_button = Button(self, text="+", command=self.add_line)
         self.paste_button = Button(self, text="Paste", command=lambda: self.paste_from_clip())
         self.reset_button = Button(self, text="Reset", command=lambda: self.reset_entries())
-        self.close_button = Button(self, text="Close", command=master.quit)
+        #self.close_button = Button(self, text="Close", command=master.quit)
 
         # Grid
         self.name_entry.grid(row=0, column=0)
@@ -100,7 +95,8 @@ class NewEntryFrame(Frame):
         
     def add_line(self, event=None):
         com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), ["all"])
-        line_block = SavedLineFrame(self.list_frame, com_id, self.name_entry.get(), self.line_entry.get())
+        list_frame = self.tab_control.get_current_list_frame()
+        line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get())
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
@@ -116,93 +112,137 @@ class NewEntryFrame(Frame):
         self.line_entry.delete('0', 'end')
         self.name_entry.delete('0', 'end')
 
-class ParentTabs(ttk.Notebook):
+class TabControl(ttk.Notebook):
     def __init__(self, master):
         ttk.Notebook.__init__(self, master)
-        self["height"] = 400
+        self["height"] = 450
         self["width"] = 650
+
+        self.widgets = {}
+        self.i = 0
+
+        self.init_default_tabs()
 
         # Grid management
         self.grid(row=0, column=1)
 
-    def setter(self, canvas, list_frame):
-        '''
-        To externally create canvas and list frame
-        '''
-        self.canvas = canvas
-        self.list_frame = list_frame
-        self.set_scrollbar()
+    def create_tab(self, tab_name="new_tab", add_button=False):
+        canvas = ViewCanvas(self)
+        list_frame = LinesListFrame(canvas)
+        if not add_button:
+            print("heh")
+            scrollbar = self.set_scrollbar(canvas, list_frame) #TODO: scrollbar referenced before assignment, so change how this tab is created
+        else: #+ scrollbar not working properly and bounded to the whole frame. Add print on the "on enter" and "on leave"
+            scrollbar = "NO_SCROLLBAR"
+        
+        self.widgets[tab_name] = { 
+            #TODO: utiliser l'id plutôt pour changer facilement le texte
+                "canvas": canvas, 
+                "list_frame": list_frame, 
+                "scrollbar": scrollbar
+            }
+
+        self.add(canvas, text=tab_name)
+
+        print(self.tabs())
+
+    def get_current_list_frame(self):
+        tab_text = self.tab(self.select(), option="text")
+        return self.widgets[tab_text]["list_frame"]
     
-    def set_scrollbar(self):
-        self.vsb = Scrollbar(self.canvas, orient=tk.VERTICAL, command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=self.vsb.set)
-        self.canvas.create_window((0,0), window=self.list_frame, anchor="nw")
+    def set_scrollbar(self, canvas, list_frame):
+        vsb = Scrollbar(canvas, orient=tk.VERTICAL, command=canvas.yview)
+        canvas.configure(yscrollcommand=vsb.set)
+        canvas.create_window((0,0), window=list_frame, anchor="nw")
 
         # Scrollbar positioning
-        self.canvas.columnconfigure(0, weight=1)
-        self.canvas.rowconfigure(0, weight=1)    
+        canvas.columnconfigure(0, weight=1)
+        canvas.rowconfigure(0, weight=1)    
 
+        # Binding #TODO
+        list_frame.bind("<Configure>", self.on_frame_configure)
+        list_frame.bind('<Enter>', self.on_enter)
+        list_frame.bind('<Leave>', self.on_leave)
 
-        # Binding
-        self.list_frame.bind("<Configure>", self.on_frame_configure)
-        self.list_frame.bind('<Enter>', self.on_enter)
-        self.list_frame.bind('<Leave>', self.on_leave)
-        #self.canvas.bind("<Configure>", self.on_frame_configure)
-        #self.canvas.bind_all("<MouseWheel>", self.on_mouse_wheel)
+        self.bind('<<NotebookTabChanged>>', self.on_tab_change)
+
 
         # Grid management
-        self.vsb.grid(row=SB_ROW, column=SB_COL, sticky=tk.NSEW) #note: needs nsew to fill
-        self.canvas.grid(row=VC_ROW, column=VC_COL)
+        ## 
+        # For a strange reason, griding the list_frame and canvas breaks the scrolling
+        # event if they properly display
+        # Maybe because grid fixes the position
+        #
+        #list_frame.grid(row=0, column=0)
+        #canvas.grid(row=VC_ROW, column=VC_COL)
+        ##
+        vsb.grid(row=SB_ROW, column=SB_COL, sticky=tk.NSEW) #note: needs nsew to fill
+        return vsb
+        
+    
+    def init_default_tabs(self):
+        '''
+        Adding default tabs to TabControl
+        '''
+        self.create_tab(tab_name="all")
+        self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
+        #TODO: le faire en fonction des catégories enregistrées dans le json
 
-        # Add tab
-        self.add(self.canvas, text="alltest")
-
-        #self.list_frame.update_idletasks()
+    def on_tab_change(self, event):
+        tab_id = self.select()
+        tab_text = self.tab(self.select(), option="text")
+        if tab_text == "+":
+            self.create_tab()
+            self.forget(tab_id)
+            self.create_tab(tab_name="+", add_button=True)
+        else:
+            print("NOT +")
+            pass
         
         
     def on_frame_configure(self, event):
         '''
         Resets the scroll region to encompass the inner frame
         '''
-        # bbox = self.canvas.bbox(tk.ALL)
-        # w, h = bbox[2]-bbox[1], bbox[3]-bbox[1]
-        # dw, dh = int((w/6) * SL_COLS_DISP), int((h/10) * SL_ROWS_DISP)
-        # self.canvas.configure(scrollregion=bbox, width=dw, height=dh)
-        self.canvas.configure(scrollregion=self.canvas.bbox(tk.ALL))
+        current_canvas = self.widgets[self.tab(self.select(), option="text")]["canvas"]
+        current_canvas.configure(scrollregion=current_canvas.bbox(tk.ALL))
 
     def on_mouse_wheel(self, event):
+        current_canvas = self.widgets[self.tab(self.select(), option="text")]["canvas"]
         if platform.system() == "Windows":
-            self.canvas.yviews_croll(int(-1* (event.delta/120)), "units")
+            current_canvas.yviews_croll(int(-1* (event.delta/120)), "units")
         else:
             if event.num == 4:
-                    self.canvas.yview_scroll( -1, "units" )
+                    current_canvas.yview_scroll( -1, "units" )
             elif event.num == 5:
-                self.canvas.yview_scroll( 1, "units" )
+                current_canvas.yview_scroll( 1, "units" )
 
 
     def on_enter(self, event):
+        current_canvas = self.widgets[self.tab(self.select(), option="text")]["canvas"]
         if platform.system() == "Linux":
-            self.canvas.bind_all("<Button-4>", self.on_mouse_wheel)
-            self.canvas.bind_all("<Button-5>", self.on_mouse_wheel)
+            current_canvas.bind_all("<Button-4>", self.on_mouse_wheel)
+            current_canvas.bind_all("<Button-5>", self.on_mouse_wheel)
         else:
-            self.canvas.bind_all('<MouseWheel>', self.on_mouse_wheel)
+            current_canvas.bind_all('<MouseWheel>', self.on_mouse_wheel)
     
     def on_leave(self, event):
+        current_canvas = self.widgets[self.tab(self.select(), option="text")]["canvas"]
         if platform.system() == 'Linux':
-            self.canvas.unbind_all('<Button-4')
-            self.canvas.unbind_all('<Button-5')
+            current_canvas.unbind_all('<Button-4')
+            current_canvas.unbind_all('<Button-5')
         else:
-            self.canvas.unbind_all('<MouseWheel>')
+            current_canvas.unbind_all('<MouseWheel>')
     
 
 
 class ViewCanvas(Canvas):
     '''
-    MainApp -> ParentTabs -> ViewCanvas\n
+    MainApp -> TabControl -> ViewCanvas\n
     Canvas which holds LinesListFrame and is scrollable
     '''
-    def __init__(self, parent_tab):
-        Canvas.__init__(self, parent_tab)
+    def __init__(self, tab_control):
+        Canvas.__init__(self, tab_control)
         # Do not put hard-coded height and width, otherwise the scrolling will
         # not work properly and will stick to these parameters
         # self["height"] = 300
@@ -213,7 +253,7 @@ class ViewCanvas(Canvas):
 
 class LinesListFrame(Frame):
     '''
-    MainApp -> ParentTabs -> ViewCanvas -> LinesListFrame\n
+    MainApp -> TabControl -> ViewCanvas -> LinesListFrame\n
     Frame that holds several SavedLineFrame
     '''
     def __init__(self, canvas_frame):
@@ -223,6 +263,7 @@ class LinesListFrame(Frame):
         self.canvas_frame = canvas_frame
 
         self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
+        # Adapter pour que ça n'affiche que quand ça all
         self.initialize_saved_lines() # TODO: this takes too much time
 
         # Since its loading takes time, it is to prevent that
@@ -230,7 +271,7 @@ class LinesListFrame(Frame):
 
     def initialize_saved_lines(self):
         for com_id, attributes in self.commands_dict.items():
-            saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"])
+            saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"]) #TODO: adapt according to the frame
 
 class SavedLineFrame(Frame):
     def __init__(self, list_frame, com_id, name, line):
@@ -320,3 +361,6 @@ if __name__=="__main__":
     root = Tk()
     main = MainApplication(root)
     root.mainloop()
+
+    #TODO: refaire la strcture du json
+    #TODO: faire un refresh dans all en cas de suppression ailleurs
