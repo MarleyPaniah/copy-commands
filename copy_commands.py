@@ -134,6 +134,17 @@ class TabControl(ttk.Notebook):
 
         # Grid management
         self.grid(row=0, column=1)
+    
+    def init_tabs(self):
+        '''
+        Adding tabs to TabControl, such as the default "@All@" and "+" but also the categories in .commands.json
+        '''
+        self.create_tab(tab_name="@All@")
+        for category in cu.get_all_categories():
+            if category == "@null@":
+                continue
+            self.create_tab(tab_name=category)
+        self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
 
     def create_tab(self, tab_name="new_tab", add_button=False):
         '''
@@ -164,15 +175,6 @@ class TabControl(ttk.Notebook):
         # Add new tab to the object
         self.add(canvas, text=tab_name)
 
-        print(self.tabs())
-
-    def get_current_list_frame(self):#Use decorators/property for these ? (so that the current tab becomes also a property of the object)
-        tab_text = self.tab(self.select(), option="text")
-        return self.widgets[tab_text]["list_frame"]
-    
-    def get_current_tab_name(self): #Use decorators/property for these ?
-        return self.tab(self.select(), option="text")
-    
     def set_scrollbar(self, canvas, list_frame):
         vsb = Scrollbar(canvas, orient=tk.VERTICAL, command=canvas.yview)
         canvas.configure(yscrollcommand=vsb.set)
@@ -189,7 +191,6 @@ class TabControl(ttk.Notebook):
 
         self.bind('<<NotebookTabChanged>>', self.on_tab_change)
 
-
         # Grid management
         ## 
         # For a strange reason, griding the list_frame and canvas breaks the scrolling
@@ -201,18 +202,13 @@ class TabControl(ttk.Notebook):
         ##
         vsb.grid(row=SB_ROW, column=SB_COL, sticky=tk.NSEW) #note: needs nsew to fill
         return vsb
-        
+
+    def get_current_list_frame(self):#Use decorators/property for these ? (so that the current tab becomes also a property of the object)
+        tab_text = self.tab(self.select(), option="text")
+        return self.widgets[tab_text]["list_frame"]
     
-    def init_tabs(self):
-        '''
-        Adding tabs to TabControl, such as the default "@All@" and "+" but also the categories in .commands.json
-        '''
-        self.create_tab(tab_name="@All@")
-        for category in cu.get_all_categories():
-            if category == "@null@":
-                continue
-            self.create_tab(tab_name=category)
-        self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
+    def get_current_tab_name(self): #Use decorators/property for these ?
+        return self.tab(self.select(), option="text")
 
     def on_tab_change(self, event):
         '''
@@ -235,11 +231,17 @@ class TabControl(ttk.Notebook):
                 self.forget(tab_id)
                 self.create_tab(tab_name="+", add_button=True)
                 cu.add_category_json(tab_name)
+        else:
+            self._update_list_frame()
             
+    def _update_list_frame(self):
+        '''
+        Updates the lines list frame
+        '''
+        #print("[DEBUG] Updating...")
+        current_list_frame = self.widgets[self.tab(self.select(), option="text")]["list_frame"]
+        current_list_frame.update_list()
 
-            
-        
-        
     def on_frame_configure(self, event):
         '''
         Resets the scroll region to encompass the inner frame
@@ -301,31 +303,42 @@ class LinesListFrame(Frame):
 
         self.canvas_frame = canvas_frame
         self.category = category
+        self.saved_lines = []
 
         self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
-        #self.initialize_saved_lines() # TODO: this takes too much time
 
-        # Since its loading takes time, it is to prevent the app from booting too late
+        # (tkitner function) Since its loading takes time, it is to prevent the app from booting too late
         self.update_idletasks()
 
-    def init_saved_lines(self):
 
-        def generate_sl(category):
+    def init_saved_lines(self):
+        '''
+        Initialize the creation of SavedLineFrame frames based on what is saved in .commands.json\n
+        Accessed by the parent frame TabControl
+        '''
+
+        def _generate_sl(category):
             '''
             Generates saved lines per category
             '''
-            for com_id, attributes in self.commands_dict[category].items():
-                print(category)
-                saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"], category)
+            try:
+                for com_id, attributes in self.commands_dict[category].items():
+                    saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"], category)
+                    self.saved_lines.append(saved_line)
+            except KeyError:
+                print("[DEBUG] (init_saved_lines/_generate_sl) Key Error, maybe because of creating a new tab")
 
-        try:
-            if self.category == "@All@":
-                for category in self.commands_dict.keys():
-                    generate_sl(category)
-            else:
-                generate_sl(self.category)
-        except Exception as e:
-            print(e)
+        if self.category == "@All@":
+            for category in self.commands_dict.keys():
+                _generate_sl(category)
+        else:
+            _generate_sl(self.category)
+    
+    def update_list(self):
+        self.commands_dict = cu.recover_json()
+        for saved_line in self.saved_lines:
+            saved_line.destroy()
+        self.init_saved_lines()
 
         
 
