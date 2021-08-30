@@ -4,10 +4,14 @@ GUI to add and copy command lines easily
 
 '''
 
+from json.decoder import JSONDecodeError
 import os
 import platform
 import tkinter as tk
-from tkinter import Canvas, ttk, PhotoImage, Scrollbar, StringVar, Tk, Label, Button, Entry, Frame, Text
+from tkinter import (
+    Canvas, ttk, PhotoImage, Scrollbar, 
+    StringVar, Tk, Label, Button, Entry, Frame, simpledialog, Text
+)
 
 import copy_commands_utils as cu
 
@@ -94,9 +98,13 @@ class NewEntryFrame(Frame):
         self.reset_button.grid(row=0, column=4)
         
     def add_line(self, event=None):
-        com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), ["all"])
+        tab_name = self.tab_control.get_current_tab_name()
+        tab_name = "@null@" if tab_name == "@All@" else tab_name
+        com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), category=tab_name)
         list_frame = self.tab_control.get_current_list_frame()
-        line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get())
+        
+        print(tab_name)
+        line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get(), tab_name)
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
@@ -119,7 +127,6 @@ class TabControl(ttk.Notebook):
         self["width"] = 650
 
         self.widgets = {}
-        self.i = 0
 
         self.init_default_tabs()
 
@@ -127,28 +134,42 @@ class TabControl(ttk.Notebook):
         self.grid(row=0, column=1)
 
     def create_tab(self, tab_name="new_tab", add_button=False):
-        canvas = ViewCanvas(self)
-        list_frame = LinesListFrame(canvas)
+        '''
+        Creates a new tab\n
+        input:
+        - tab_name (optional): name of the new tab (String)
+        - add_button (optional): whether or not the tab is an "add new tab" button (bool)
+        '''
+        # Create frames
         if not add_button:
-            print("heh")
-            scrollbar = self.set_scrollbar(canvas, list_frame) #TODO: scrollbar referenced before assignment, so change how this tab is created
-        else: #+ scrollbar not working properly and bounded to the whole frame. Add print on the "on enter" and "on leave"
+            canvas = ViewCanvas(self)
+            list_frame = LinesListFrame(canvas, category=tab_name)
+            list_frame.initialize_saved_lines()
+            scrollbar = self.set_scrollbar(canvas, list_frame)
+        else:
+            # Frames for the +
+            canvas = Frame(self)
+            list_frame = "NO_FRAME"
             scrollbar = "NO_SCROLLBAR"
         
         self.widgets[tab_name] = { 
-            #TODO: utiliser l'id plutôt pour changer facilement le texte
+            #TODO: Use tab id instead of the name to be able to edit it
                 "canvas": canvas, 
                 "list_frame": list_frame, 
                 "scrollbar": scrollbar
             }
 
+        # Add new tab to the object
         self.add(canvas, text=tab_name)
 
         print(self.tabs())
 
-    def get_current_list_frame(self):
+    def get_current_list_frame(self):#Use decorators/property for these ?
         tab_text = self.tab(self.select(), option="text")
         return self.widgets[tab_text]["list_frame"]
+    
+    def get_current_tab_name(self): #Use decorators/property for these ?
+        return self.tab(self.select(), option="text")
     
     def set_scrollbar(self, canvas, list_frame):
         vsb = Scrollbar(canvas, orient=tk.VERTICAL, command=canvas.yview)
@@ -183,21 +204,34 @@ class TabControl(ttk.Notebook):
     def init_default_tabs(self):
         '''
         Adding default tabs to TabControl
+        raise:
+        - JSONDecodeError
         '''
-        self.create_tab(tab_name="all")
-        self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
-        #TODO: le faire en fonction des catégories enregistrées dans le json
+        try:
+            self.create_tab(tab_name="@All@")
+            for category in cu.get_all_categories():
+                if category == "@null@":
+                    continue
+                self.create_tab(tab_name=category)
+            self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
+            #TODO: le faire en fonction des catégories enregistrées dans le json
+        except JSONDecodeError:
+            print(f"[DEBUG] (init_default_tabs) json file is empty")
 
     def on_tab_change(self, event):
+        '''
+        Event handler when the tab changes
+        '''
         tab_id = self.select()
         tab_text = self.tab(self.select(), option="text")
         if tab_text == "+":
-            self.create_tab()
-            self.forget(tab_id)
-            self.create_tab(tab_name="+", add_button=True)
-        else:
-            print("NOT +")
-            pass
+            tab_name = simpledialog.askstring("New tab", "Enter the new tab name", parent=self)
+            if (tab_name is not None) or (tab_name == ""):
+                self.create_tab(tab_name=tab_name)
+                self.forget(tab_id)
+                self.create_tab(tab_name="+", add_button=True)
+            else:
+                self.select(0) # Go back to the first tab, @All@
         
         
     def on_frame_configure(self, event):
@@ -216,7 +250,6 @@ class TabControl(ttk.Notebook):
                     current_canvas.yview_scroll( -1, "units" )
             elif event.num == 5:
                 current_canvas.yview_scroll( 1, "units" )
-
 
     def on_enter(self, event):
         current_canvas = self.widgets[self.tab(self.select(), option="text")]["canvas"]
@@ -256,29 +289,48 @@ class LinesListFrame(Frame):
     MainApp -> TabControl -> ViewCanvas -> LinesListFrame\n
     Frame that holds several SavedLineFrame
     '''
-    def __init__(self, canvas_frame):
+    def __init__(self, canvas_frame, category):
         Frame.__init__(self, canvas_frame)
         self["bg"] = "red"
 
         self.canvas_frame = canvas_frame
+        self.category = category
 
         self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
-        # Adapter pour que ça n'affiche que quand ça all
-        self.initialize_saved_lines() # TODO: this takes too much time
+        #self.initialize_saved_lines() # TODO: this takes too much time
 
-        # Since its loading takes time, it is to prevent that
+        # Since its loading takes time, it is to prevent the app from booting too late
         self.update_idletasks()
 
     def initialize_saved_lines(self):
-        for com_id, attributes in self.commands_dict.items():
-            saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"]) #TODO: adapt according to the frame
+
+        def generate_sl(category):
+            '''
+            Generates saved lines per category
+            '''
+            for com_id, attributes in self.commands_dict[category].items():
+                print(category)
+                saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"], category)
+
+        try:
+            if self.category == "@All@":
+                for category in self.commands_dict.keys():
+                    generate_sl(category)
+            else:
+                generate_sl(self.category)
+        except Exception as e:
+            print(e)
+
+        
 
 class SavedLineFrame(Frame):
-    def __init__(self, list_frame, com_id, name, line):
+    def __init__(self, list_frame, com_id, name, line, category):
         Frame.__init__(self, list_frame)
         self["bg"] = "#00c450"
 
         self.com_id = com_id
+
+        self.category = category
 
         self.name = StringVar()
         self.line = StringVar()
@@ -287,9 +339,10 @@ class SavedLineFrame(Frame):
 
         self.saved_name_label = Label(self, textvariable=self.name, width=20)
         self.saved_line_label = Label(self, textvariable=self.line, width=50)
-
-        self.saved_name_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, field='name'))
-        self.saved_line_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, field='line'))
+        
+        # Binding
+        self.saved_name_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, category=self.category, field='name'))
+        self.saved_line_label.bind('<Double-Button-1>', lambda event: self.edit_label(com_id=self.com_id, category=self.category, field='line'))
 
 
         sub = 20 #for subsampling i.e. resizing
@@ -306,7 +359,7 @@ class SavedLineFrame(Frame):
         self.delete_button.grid(row=0, column=3)
 
 
-    def edit_label(self, com_id, field):
+    def edit_label(self, com_id, category, field):
         '''
         Changes label of an already saved line
         
@@ -336,11 +389,10 @@ class SavedLineFrame(Frame):
             '''
             Intermediate function for saving edited line and destroy over_entry widget
             '''
-            cu.edit_saved_json(com_id, field, self.over_entry.get())
+            cu.edit_saved_json(com_id, category, field, self.over_entry.get())
             self.over_entry.destroy()
 
 
-        
     def copy_line(self, text):
         clip = Tk()
         clip.withdraw()
@@ -351,16 +403,15 @@ class SavedLineFrame(Frame):
 
     def delete_line(self):
         self.grid_forget()
-        self.destroy() # (remoove if I want to be able to undo the deletion)
-        cu.delete_from_json(self.com_id)
+        self.destroy() # (remove if I want to be able to undo the deletion)
+        cu.delete_from_json(self.category, self.com_id)
         
         
-    
     
 if __name__=="__main__":
     root = Tk()
     main = MainApplication(root)
     root.mainloop()
 
-    #TODO: refaire la strcture du json
     #TODO: faire un refresh dans all en cas de suppression ailleurs
+    #TODO: faire un décorateur pour les print de débug avec l'affichage du nom de la fonction avant
