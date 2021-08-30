@@ -11,34 +11,41 @@ import uuid
 dir_name = os.path.dirname(__file__)
 json_path = os.path.join(dir_name, ".commands.json")
 
-def check_file(json_path=json_path):
+def init_json(json_path=json_path):
     '''
-    Checks if the file exists and if it is empty
+    Initialize the .commands.json file
     '''
-    if not os.path.exists(json_path):
+    def _create_json(json_path):
         with open(json_path, "w+") as json_file:
-            print(f"[DEBUG] File created")
-    if os.stat(json_path).st_size == 0:
-        print("[DEBUG] File empty")
-        return 0
-    else:
-        return 1
+            
+            json_dict = {"@null@":{}}
+            json.dump(json_dict, json_file, indent=4)
 
-def get_all_categories():
-    with open(json_path, "r") as json_file:
-        json_dict = json.load(json_file)
-    return json_dict.keys()
+    try:
+        if os.path.exists(json_path):
+            print("[DEBUG] File already exists.")
+            if os.stat(json_path).st_size != 0:
+                print("[DEBUG] File is not empty.")
+            else:
+                print("[DEBUG] File filled.")
+                _create_json(json_path)
+        else:
+            print("[DEBUG] File created.")
+            _create_json(json_path)
+    except JSONDecodeError as err:
+        print(err)
 
 def create_backup():
     '''
     Do a backup of the .commands.json, just in case
     '''
-    #TODO
+    #TODO + add exception handling with a copy of the json_dict (see decorators in main)
     pass
 
 
-
-def add_to_json(name, line, category, json_path=json_path):
+#region JSON editing
+#TODO: find a way to reduce the copy and pasting of open(json_path, 'r') and open(json_path, 'w')
+def add_line_json(name, line, category, json_path=json_path):
     '''
     Adds a new command to the JSON file that stores all of them
     Inputs:
@@ -60,10 +67,6 @@ def add_to_json(name, line, category, json_path=json_path):
         }
     }
 
-    if check_file() == 0:
-        with open(json_path, "w") as json_file:
-            json.dump(com_dict, json_file, indent=4)
-
     with open(json_path, "r") as json_file:
         json_dict = json.load(json_file) # JSON -> dict
     with open(json_path, "w") as json_file:
@@ -72,27 +75,14 @@ def add_to_json(name, line, category, json_path=json_path):
     
     return com_id
     
-def delete_from_json(category, com_id):
+def delete_line_json(category, com_id, json_path=json_path):
     with open(json_path, "r") as json_file:
         json_dict = json.load(json_file)
     with open(json_path, "w") as json_file:
         del json_dict[category][com_id]
         json.dump(json_dict, json_file, indent=4)
 
-def recover_json(json_path=json_path):
-    '''
-    Opens .commands.json if it exists to show saved commands/lines in the GUI\n
-    Output:
-    - json_dict: the JSON in a dictionary form (dict)
-    '''
-    if check_file() == 0:
-            json_dict = {}
-    else:
-        with open(json_path, 'r') as json_file:
-            json_dict = json.load(json_file)
-    return json_dict
-
-def edit_saved_json(com_id, category, field, entry, json_path=json_path):
+def edit_line_json(com_id, category, field, entry, json_path=json_path):
     '''
     Edit the values (name, line or category) of a command identified by an id in the JSON\n
     Inputs:
@@ -105,6 +95,31 @@ def edit_saved_json(com_id, category, field, entry, json_path=json_path):
 
     with open(json_path, "w") as json_file:
         json.dump(json_dict, json_file, indent=4)
+
+def add_category_json(category, json_path=json_path):
+    with open(json_path, 'r') as json_file:
+        json_dict = json.load(json_file)
+    json_dict[category] = {}
+    with open(json_path, 'w') as json_file:
+        json.dump(json_dict, json_file, indent=4)
+#endregion
+
+#region get JSON info 
+def recover_json(json_path=json_path):
+    '''
+    Opens .commands.json if it exists to show saved commands/lines in the GUI\n
+    Output:
+    - json_dict: the JSON in a dictionary form (dict)
+    '''
+    with open(json_path, 'r') as json_file:
+        json_dict = json.load(json_file)
+    return json_dict
+
+def get_all_categories():
+    with open(json_path, "r") as json_file:
+        json_dict = json.load(json_file)
+    return json_dict.keys()
+#endregion
 
 if __name__ == "__main__":
     #add_to_json("name_test", "line_test", [])

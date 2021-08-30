@@ -10,7 +10,8 @@ import platform
 import tkinter as tk
 from tkinter import (
     Canvas, ttk, PhotoImage, Scrollbar, 
-    StringVar, Tk, Label, Button, Entry, Frame, simpledialog, Text
+    StringVar, Tk, Label, Button, Entry, 
+    Frame, simpledialog, messagebox
 )
 
 import copy_commands_utils as cu
@@ -53,11 +54,11 @@ class MainApplication:
         # Main title
         self.main_title = Label(width=20, height=2, text="copy-commands", font=('Courier', 20))
 
+        # Create and init .commands.json
+        cu.init_json()
+
         # Tab
         self.tabs = TabControl(self.master)
-        #TODO: move the canvas and list frame logic into the tabs themselves
-        # Watch out for newentryframe, that needs to be passed a list_frame,
-        # which can be retrieved by accessing the selected tab
 
         self.new_entry_frame = NewEntryFrame(self.master, self.tabs)    
 
@@ -100,7 +101,7 @@ class NewEntryFrame(Frame):
     def add_line(self, event=None):
         tab_name = self.tab_control.get_current_tab_name()
         tab_name = "@null@" if tab_name == "@All@" else tab_name
-        com_id = cu.add_to_json(self.name_entry.get(), self.line_entry.get(), category=tab_name)
+        com_id = cu.add_line_json(self.name_entry.get(), self.line_entry.get(), category=tab_name)
         list_frame = self.tab_control.get_current_list_frame()
         
         print(tab_name)
@@ -128,7 +129,8 @@ class TabControl(ttk.Notebook):
 
         self.widgets = {}
 
-        self.init_default_tabs()
+        # Tab initialization
+        self.init_tabs()
 
         # Grid management
         self.grid(row=0, column=1)
@@ -144,7 +146,7 @@ class TabControl(ttk.Notebook):
         if not add_button:
             canvas = ViewCanvas(self)
             list_frame = LinesListFrame(canvas, category=tab_name)
-            list_frame.initialize_saved_lines()
+            list_frame.init_saved_lines()
             scrollbar = self.set_scrollbar(canvas, list_frame)
         else:
             # Frames for the +
@@ -164,7 +166,7 @@ class TabControl(ttk.Notebook):
 
         print(self.tabs())
 
-    def get_current_list_frame(self):#Use decorators/property for these ?
+    def get_current_list_frame(self):#Use decorators/property for these ? (so that the current tab becomes also a property of the object)
         tab_text = self.tab(self.select(), option="text")
         return self.widgets[tab_text]["list_frame"]
     
@@ -180,7 +182,7 @@ class TabControl(ttk.Notebook):
         canvas.columnconfigure(0, weight=1)
         canvas.rowconfigure(0, weight=1)    
 
-        # Binding #TODO
+        # Binding
         list_frame.bind("<Configure>", self.on_frame_configure)
         list_frame.bind('<Enter>', self.on_enter)
         list_frame.bind('<Leave>', self.on_leave)
@@ -201,22 +203,16 @@ class TabControl(ttk.Notebook):
         return vsb
         
     
-    def init_default_tabs(self):
+    def init_tabs(self):
         '''
-        Adding default tabs to TabControl
-        raise:
-        - JSONDecodeError
+        Adding tabs to TabControl, such as the default "@All@" and "+" but also the categories in .commands.json
         '''
-        try:
-            self.create_tab(tab_name="@All@")
-            for category in cu.get_all_categories():
-                if category == "@null@":
-                    continue
-                self.create_tab(tab_name=category)
-            self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
-            #TODO: le faire en fonction des catégories enregistrées dans le json
-        except JSONDecodeError:
-            print(f"[DEBUG] (init_default_tabs) json file is empty")
+        self.create_tab(tab_name="@All@")
+        for category in cu.get_all_categories():
+            if category == "@null@":
+                continue
+            self.create_tab(tab_name=category)
+        self.create_tab(tab_name="+", add_button=True) # For the "+"/"Add new tab" button
 
     def on_tab_change(self, event):
         '''
@@ -225,13 +221,23 @@ class TabControl(ttk.Notebook):
         tab_id = self.select()
         tab_text = self.tab(self.select(), option="text")
         if tab_text == "+":
-            tab_name = simpledialog.askstring("New tab", "Enter the new tab name", parent=self)
-            if (tab_name is not None) or (tab_name == ""):
+            tab_name = simpledialog.askstring("New tab", "Enter new tab name", parent=self)
+            if (tab_name is None) or (tab_name == ""):
+                self.select(0) # Go back to the first tab, @All@
+            elif tab_name in [self.tab(i, option="text") for i in self.tabs()]:
+                messagebox.showerror(title="Error: New Tab", message=f"Tab name '{tab_name}' already exists. Please use another one.")
+                self.select(0)
+            elif '@' in tab_name:
+                messagebox.showerror(title="Error: New Tab", message="Tab name can't contain the character '@'")
+                self.select(0)
+            else:
                 self.create_tab(tab_name=tab_name)
                 self.forget(tab_id)
                 self.create_tab(tab_name="+", add_button=True)
-            else:
-                self.select(0) # Go back to the first tab, @All@
+                cu.add_category_json(tab_name)
+            
+
+            
         
         
     def on_frame_configure(self, event):
@@ -302,7 +308,7 @@ class LinesListFrame(Frame):
         # Since its loading takes time, it is to prevent the app from booting too late
         self.update_idletasks()
 
-    def initialize_saved_lines(self):
+    def init_saved_lines(self):
 
         def generate_sl(category):
             '''
@@ -389,7 +395,7 @@ class SavedLineFrame(Frame):
             '''
             Intermediate function for saving edited line and destroy over_entry widget
             '''
-            cu.edit_saved_json(com_id, category, field, self.over_entry.get())
+            cu.edit_line_json(com_id, category, field, self.over_entry.get())
             self.over_entry.destroy()
 
 
@@ -404,7 +410,7 @@ class SavedLineFrame(Frame):
     def delete_line(self):
         self.grid_forget()
         self.destroy() # (remove if I want to be able to undo the deletion)
-        cu.delete_from_json(self.category, self.com_id)
+        cu.delete_line_json(self.category, self.com_id)
         
         
     
@@ -412,6 +418,3 @@ if __name__=="__main__":
     root = Tk()
     main = MainApplication(root)
     root.mainloop()
-
-    #TODO: faire un refresh dans all en cas de suppression ailleurs
-    #TODO: faire un décorateur pour les print de débug avec l'affichage du nom de la fonction avant

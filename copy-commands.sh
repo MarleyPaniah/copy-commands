@@ -1,2 +1,2 @@
 #!/bin/sh
-python3 copy-commands.py
+python3 copy_commands.py
