@@ -91,7 +91,7 @@ class NewEntryFrame(Frame):
         self.reset_button = Button(self, text="Reset", command=lambda: self.reset_entries())
         #self.close_button = Button(self, text="Close", command=master.quit)
 
-        # Grid
+        # Grid management
         self.name_entry.grid(row=0, column=0)
         self.line_entry.grid(row=0, column=1)
         self.add_button.grid(row=0, column=2)
@@ -99,12 +99,14 @@ class NewEntryFrame(Frame):
         self.reset_button.grid(row=0, column=4)
         
     def add_line(self, event=None):
+        '''
+        Adds line to .commands.json and ask for a refresh of the list frame
+        '''
         tab_name = self.tab_control.get_current_tab_name()
         tab_name = "@null@" if tab_name == "@All@" else tab_name
         com_id = cu.add_line_json(self.name_entry.get(), self.line_entry.get(), category=tab_name)
         list_frame = self.tab_control.get_current_list_frame()
         list_frame.update_list()
-        #line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get(), tab_name)
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
