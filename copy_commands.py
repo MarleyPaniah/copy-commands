@@ -228,7 +228,7 @@ class TabControl(ttk.Notebook):
                 messagebox.showerror(title="Error: New Tab", message=f"Tab name '{tab_name}' already exists. Please use another one.")
                 self.select(0)
             elif '@' in tab_name:
-                messagebox.showerror(title="Error: New Tab", message="Tab name can't contain the character '@'")
+                messagebox.showerror(title="Error: New Tab", message="Tab name can't contain the character '@'.")
                 self.select(0)
             else:
                 self.create_tab(tab_name=tab_name)
