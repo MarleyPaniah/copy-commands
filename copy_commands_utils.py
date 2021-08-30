@@ -84,7 +84,8 @@ def delete_line_json(category, com_id, json_path=json_path):
             json.dump(json_dict, json_file, indent=4)
     except KeyError:
         print("[DEBUG] (delete_line_json) line not found")
-        json.dump(json_dict, json_file, indent=4)
+        with open(json_path, "w") as json_path:
+            json.dump(json_dict, json_file, indent=4)
 
 def edit_line_json(com_id, category, field, entry, json_path=json_path):
     '''

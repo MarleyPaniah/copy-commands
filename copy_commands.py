@@ -103,9 +103,8 @@ class NewEntryFrame(Frame):
         tab_name = "@null@" if tab_name == "@All@" else tab_name
         com_id = cu.add_line_json(self.name_entry.get(), self.line_entry.get(), category=tab_name)
         list_frame = self.tab_control.get_current_list_frame()
-        
-        print(tab_name)
-        line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get(), tab_name)
+        list_frame.update_list()
+        #line_block = SavedLineFrame(list_frame, com_id, self.name_entry.get(), self.line_entry.get(), tab_name)
         print(self.line_entry.get())
     
     def paste_from_clip(self, event=None):
@@ -210,6 +209,15 @@ class TabControl(ttk.Notebook):
     def get_current_tab_name(self): #Use decorators/property for these ?
         return self.tab(self.select(), option="text")
 
+    def _update_list_frame(self):
+        '''
+        Updates the lines list frame.\n
+        Called by _on_tab_change
+        '''
+        #print("[DEBUG] Updating...")
+        current_list_frame = self.widgets[self.tab(self.select(), option="text")]["list_frame"]
+        current_list_frame.update_list()
+
     def on_tab_change(self, event):
         '''
         Event handler when the tab changes
@@ -224,7 +232,7 @@ class TabControl(ttk.Notebook):
                 messagebox.showerror(title="Error: New Tab", message=f"Tab name '{tab_name}' already exists. Please use another one.")
                 self.select(0)
             elif '@' in tab_name:
-                messagebox.showerror(title="Error: New Tab", message="Tab name can't contain the character '@'.")
+                messagebox.showerror(title="Error: New Tab", message="Tab names can't contain the character '@'.")
                 self.select(0)
             else:
                 self.create_tab(tab_name=tab_name)
@@ -233,14 +241,6 @@ class TabControl(ttk.Notebook):
                 cu.add_category_json(tab_name)
         else:
             self._update_list_frame()
-            
-    def _update_list_frame(self):
-        '''
-        Updates the lines list frame
-        '''
-        #print("[DEBUG] Updating...")
-        current_list_frame = self.widgets[self.tab(self.select(), option="text")]["list_frame"]
-        current_list_frame.update_list()
 
     def on_frame_configure(self, event):
         '''
@@ -343,6 +343,12 @@ class LinesListFrame(Frame):
         
 
 class SavedLineFrame(Frame):
+    '''
+    MainApp -> TabControl -> ViewCanvas -> LinesListFrame -> SavedLineFrame\n
+    Frame that contains the line itself and its name.\n
+    Content can be modified by double-clicking.\n
+    SavedLineFrame is automatically added to parent frame LinesListFrame when created
+    '''
     def __init__(self, list_frame, com_id, name, line, category):
         Frame.__init__(self, list_frame)
         self["bg"] = "#00c450"
