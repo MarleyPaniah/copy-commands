@@ -107,13 +107,22 @@ def add_category_json(category, json_path=json_path):
     json_dict[category] = {}
     with open(json_path, 'w') as json_file:
         json.dump(json_dict, json_file, indent=4)
+
+def delete_category_json(category, json_path=json_path):
+    with open(json_path, 'r') as json_file:
+        json_dict = json.load(json_file)
+    del json_dict[category]
+    with open(json_path, 'w') as json_file:
+        json.dump(json_dict, json_file, indent=4)
 #endregion
 
-#region get JSON info 
-def recover_json(json_path=json_path):
+#region getters JSON info 
+def get_json(json_path=json_path):
     '''
     Opens .commands.json if it exists to show saved commands/lines in the GUI\n
-    Output:
+    input: 
+    - json_path (optional): path to json, default is .commands.json
+    output:
     - json_dict: the JSON in a dictionary form (dict)
     '''
     with open(json_path, 'r') as json_file:
@@ -126,7 +135,7 @@ def get_all_categories():
     return json_dict.keys()
 #endregion
 
+# Test 
 if __name__ == "__main__":
-    #add_to_json("name_test", "line_test", [])
-    #recover_json()
-    pass
+    json_dict = get_json()
+    print(json_dict)

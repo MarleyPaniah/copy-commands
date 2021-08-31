@@ -39,9 +39,6 @@ LL_COL = 0 # Lines list column
 SB_ROW = 0 # Scrollbar row
 SB_COL = 1 # Scrollbar column
 
-# SL_ROWS_DISP = 10 # Saved lines rows simultaneously displayed
-# SL_COLS_DISP = 4 # Saved lines columns simultaneously displayed
-
 
 dir_name = os.path.dirname(__file__)
 
@@ -60,12 +57,28 @@ class MainApplication:
         # Tab
         self.tabs = TabControl(self.master)
 
-        self.new_entry_frame = NewEntryFrame(self.master, self.tabs)    
+        # New Entry
+        self.new_entry_frame = NewEntryFrame(self.master, self.tabs)
+
+        # Delete tab button
+        self.delete_tab_button = Button(self.master, text="Remove tab", command=self.remove_tab) 
 
         # Grid management
         self.main_title.grid(row=MT_ROW, column=MT_COL, padx=(0, 0), sticky=tk.NW)
         self.new_entry_frame.grid(row=NE_ROW, column=NE_COL, padx=(50, 0), pady=(0, 0), sticky=tk.NW)
         self.tabs.grid(row=TC_ROW, column=TC_COL, padx = (50, 0), pady= (10, 0), sticky=tk.NW)
+        self.delete_tab_button.grid(row=3, column=0)
+    
+    def remove_tab(self, event=None):
+        tab_name = self.tabs.tab(self.tabs.select(), option="text")
+        tab_ref = self.tabs.select()
+        if tab_name != "@All@":
+            answer = "yes"
+            if cu.get_json()[tab_name] != {}:
+                answer = messagebox.askquestion(title="Delete non-empty tab", message="Deleting this tab will delete all saved lines it contains. Continue ?", icon="warning")
+            if answer == "yes":
+                self.tabs.forget(tab_ref)
+                cu.delete_category_json(tab_name)
 
 class NewEntryFrame(Frame):
     def __init__(self, master, tab_control):
@@ -89,7 +102,6 @@ class NewEntryFrame(Frame):
         self.add_button = Button(self, text="+", command=self.add_line)
         self.paste_button = Button(self, text="Paste", command=lambda: self.paste_from_clip())
         self.reset_button = Button(self, text="Reset", command=lambda: self.reset_entries())
-        #self.close_button = Button(self, text="Close", command=master.quit)
 
         # Grid management
         self.name_entry.grid(row=0, column=0)
@@ -277,8 +289,6 @@ class TabControl(ttk.Notebook):
         else:
             current_canvas.unbind_all('<MouseWheel>')
     
-
-
 class ViewCanvas(Canvas):
     '''
     MainApp -> TabControl -> ViewCanvas\n
@@ -307,7 +317,7 @@ class LinesListFrame(Frame):
         self.category = category
         self.saved_lines = []
 
-        self.commands_dict = cu.recover_json() # dictionary of all saved lines/commands
+        self.commands_dict = cu.get_json() # dictionary of all saved lines/commands
 
         # (tkitner function) Since its loading takes time, it is to prevent the app from booting too late
         self.update_idletasks()
@@ -337,7 +347,7 @@ class LinesListFrame(Frame):
             _generate_sl(self.category)
     
     def update_list(self):
-        self.commands_dict = cu.recover_json()
+        self.commands_dict = cu.get_json() # updates the dictionary of the list frame
         for saved_line in self.saved_lines:
             saved_line.destroy()
         self.init_saved_lines()
