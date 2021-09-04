@@ -1,7 +1,6 @@
 '''
 copy-commands
 GUI to add and copy command lines easily
-
 '''
 
 from json.decoder import JSONDecodeError
@@ -169,7 +168,7 @@ class TabControl(ttk.Notebook):
         # Create frames
         if not add_button:
             canvas = ViewCanvas(self)
-            list_frame = LinesListFrame(canvas, category=tab_name)
+            list_frame = LinesListFrame(self, canvas, category=tab_name)
             list_frame.init_saved_lines()
             scrollbar = self.set_scrollbar(canvas, list_frame)
         else:
@@ -309,15 +308,16 @@ class LinesListFrame(Frame):
     MainApp -> TabControl -> ViewCanvas -> LinesListFrame\n
     Frame that holds several SavedLineFrame
     '''
-    def __init__(self, canvas_frame, category):
+    def __init__(self, tab_control, canvas_frame, category):
         Frame.__init__(self, canvas_frame)
         self["bg"] = "red"
 
+        self.tab_control = tab_control
         self.canvas_frame = canvas_frame
         self.category = category
         self.saved_lines = []
 
-        self.commands_dict = cu.get_json() # dictionary of all saved lines/commands
+        self.all_dict = cu.get_json() # dictionary of all saved lines/commands
 
         # (tkitner function) Since its loading takes time, it is to prevent the app from booting too late
         self.update_idletasks()
@@ -334,24 +334,28 @@ class LinesListFrame(Frame):
             Generates saved lines per category
             '''
             try:
-                for com_id, attributes in self.commands_dict[category].items():
-                    saved_line = SavedLineFrame(self, com_id, attributes["name"], attributes["line"], category)
+                for com_id, attributes in self.all_dict[category].items():
+                    saved_line = SavedLineFrame(self.tab_control, self, com_id, attributes["name"], attributes["line"], category)
                     self.saved_lines.append(saved_line)
             except KeyError:
                 print("[DEBUG] (init_saved_lines/_generate_sl) Key Error, maybe because of creating a new tab")
 
         if self.category == "@All@":
-            for category in self.commands_dict.keys():
+            for category in self.all_dict.keys():
                 _generate_sl(category)
         else:
             _generate_sl(self.category)
     
     def update_list(self):
-        self.commands_dict = cu.get_json() # updates the dictionary of the list frame
+        '''
+        Updates the list of frames
+        NOTE: Can be more fined tuned and update only the modified SavedLineFrames
+        '''
+        self.all_dict = cu.get_json()
         for saved_line in self.saved_lines:
             saved_line.destroy()
         self.init_saved_lines()
-
+            
         
 
 class SavedLineFrame(Frame):
@@ -361,12 +365,12 @@ class SavedLineFrame(Frame):
     Content can be modified by double-clicking.\n
     SavedLineFrame is automatically added to parent frame LinesListFrame when created
     '''
-    def __init__(self, list_frame, com_id, name, line, category):
+    def __init__(self, tab_control, list_frame, com_id, name, line, category):
         Frame.__init__(self, list_frame)
         self["bg"] = "#00c450"
+        self.tab_control = tab_control
 
         self.com_id = com_id
-
         self.category = category
 
         self.name = StringVar()
@@ -383,9 +387,9 @@ class SavedLineFrame(Frame):
 
 
         sub = 20 #for subsampling i.e. resizing
-        self.copy_icon = PhotoImage(file=os.path.join(dir_name, "copy_icon.png")).subsample(sub) #note: PhotoImage object have to be an attribute otherwise they're removed
+        self.copy_icon = PhotoImage(file=os.path.join(dir_name, "assets","copy_icon.png")).subsample(sub) #note: PhotoImage object have to be an attribute otherwise they're removed
         self.copy_button = Button(self, text="COPY", image=self.copy_icon, command=lambda: self.copy_line(self.line.get())) #TODO: change THAT
-        self.delete_icon = PhotoImage(file=os.path.join(dir_name, "delete_icon.png")).subsample(sub)
+        self.delete_icon = PhotoImage(file=os.path.join(dir_name, "assets", "delete_icon.png")).subsample(sub)
         self.delete_button = Button(self, text="DELETE", image=self.delete_icon, command=self.delete_line)
         
         # Grid management
@@ -394,7 +398,6 @@ class SavedLineFrame(Frame):
         self.saved_line_label.grid(row=0, column=1)
         self.copy_button.grid(row=0, column=2)
         self.delete_button.grid(row=0, column=3)
-
 
     def edit_label(self, com_id, category, field):
         '''
@@ -429,7 +432,6 @@ class SavedLineFrame(Frame):
             cu.edit_line_json(com_id, category, field, self.over_entry.get())
             self.over_entry.destroy()
 
-
     def copy_line(self, text):
         clip = Tk()
         clip.withdraw()
@@ -439,7 +441,7 @@ class SavedLineFrame(Frame):
         print("copied")
 
     def delete_line(self):
-        if self.category != "@null@":
+        if self.category != "@null@" and self.tab_control.get_current_tab_name() == "@All@":
             answer = messagebox.askquestion(title="Delete line", message=f"This line belongs to the category '{self.category}'. Continue ?", icon="warning")
             if answer != "yes":
                 return
