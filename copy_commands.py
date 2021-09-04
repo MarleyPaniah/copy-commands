@@ -439,6 +439,10 @@ class SavedLineFrame(Frame):
         print("copied")
 
     def delete_line(self):
+        if self.category != "@null@":
+            answer = messagebox.askquestion(title="Delete line", message=f"This line belongs to the category '{self.category}'. Continue ?", icon="warning")
+            if answer != "yes":
+                return
         self.grid_forget()
         self.destroy() # (remove if I want to be able to undo the deletion)
         cu.delete_line_json(self.category, self.com_id)
